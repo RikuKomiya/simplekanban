@@ -28,7 +28,7 @@
     }
   ],
   "vars": {
-    "BETTER_AUTH_URL": "https://simplekanban.example.workers.dev"
+    "BETTER_AUTH_URL": "https://simplekanban.aloalo-ai.workers.dev"
   }
   // Secrets (set via `wrangler secret put`):
   //   BETTER_AUTH_SECRET
