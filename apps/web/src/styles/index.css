@@ -1,0 +1,257 @@
+@import 'tailwindcss';
+
+/* Dark is the default theme. The `.dark` class lives on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ===========================================================================
+   Design tokens — Linear-inspired. CSS variables drive every surface so the
+   dark/light switch is a single class on <html>.
+   =========================================================================== */
+:root,
+.dark {
+  --bg: #0e0f10;
+  --surface: #17181a;
+  --surface-2: #1b1c1f;
+  --hover: #1d1e21;
+  --border: #26282c;
+  --border-strong: #34373c;
+  --text: #eeeff1;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #62666d;
+  --accent: #5e6ad2;
+  --accent-hover: #6872e0;
+  --accent-fg: #ffffff;
+  --destructive: #eb5757;
+  --destructive-hover: #f06363;
+  --success: #4cb782;
+  --warning: #f2c94c;
+  --ring: #5e6ad2;
+  --shadow-color: 0deg 0% 0%;
+  --selection: rgba(94, 106, 210, 0.28);
+}
+
+.light {
+  --bg: #ffffff;
+  --surface: #f8f9fa;
+  --surface-2: #f1f2f4;
+  --hover: #eef0f2;
+  --border: #e6e8eb;
+  --border-strong: #d4d7dc;
+  --text: #1c1d20;
+  --text-secondary: #6b7178;
+  --text-tertiary: #9aa0a8;
+  --accent: #5e6ad2;
+  --accent-hover: #4f5ac4;
+  --accent-fg: #ffffff;
+  --destructive: #d64545;
+  --destructive-hover: #c43c3c;
+  --success: #3a9d6e;
+  --warning: #d9a528;
+  --ring: #5e6ad2;
+  --shadow-color: 220deg 20% 30%;
+  --selection: rgba(94, 106, 210, 0.18);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-destructive: var(--destructive);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-ring: var(--ring);
+
+  --font-sans: system-ui, -apple-system, 'SF Pro Text', 'Segoe UI', Inter,
+    Roboto, Helvetica, Arial, sans-serif;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+}
+
+/* ===========================================================================
+   Base
+   =========================================================================== */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    letter-spacing: -0.006em;
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    line-height: 1.25;
+  }
+
+  /* Thin, unobtrusive scrollbars. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+
+  input,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+}
+
+/* ===========================================================================
+   Animations — respect reduced-motion.
+   =========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@utility animate-overlay {
+  animation: overlay-in 120ms ease-out;
+}
+@utility animate-pop {
+  animation: pop-in 120ms ease-out;
+}
+@utility animate-slide-panel {
+  animation: slide-in-right 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@utility animate-fade {
+  animation: fade-in 120ms ease-out;
+}
+
+/* Skeleton shimmer block. */
+@utility skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--hover) 60%, transparent),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
