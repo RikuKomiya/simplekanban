@@ -66,6 +66,7 @@ export function createApp(options: CreateAppOptions) {
 
   // ---- OpenAPI (public) ----
   app.get('/api/v1/openapi.json', (c) => c.json(openApiDocument));
+  app.get('/api/v1/auth-methods', (c) => c.json(c.var.services.authMethods));
 
   // ---- Authenticated REST API ----
   const api = new Hono<AppEnv>();

@@ -1,7 +1,7 @@
 import type { Database } from '@simplekanban/db';
 import type { User as DbUser } from '@simplekanban/db';
 import type { RealtimePublisher } from './realtime.ts';
-import type { Auth } from './auth.ts';
+import type { Auth, AuthMethods } from './auth.ts';
 
 /**
  * Per-request runtime services. Constructed once per request (Workers) or once
@@ -10,6 +10,7 @@ import type { Auth } from './auth.ts';
 export interface AppServices {
   db: Database;
   auth: Auth;
+  authMethods: AuthMethods;
   publisher: RealtimePublisher;
 }
 

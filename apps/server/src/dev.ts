@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { createDb } from '@simplekanban/db';
 import type { RealtimeEvent } from '@simplekanban/shared';
 import { createApp } from './app.ts';
-import { createAuth } from './auth.ts';
+import { authMethodsOf, createAuth } from './auth.ts';
 import { resolveAuth, type ResolvedAuth } from './middleware.ts';
 import { runMigrations } from './migrate.ts';
 import { InMemoryRealtime } from './realtime.ts';
@@ -20,11 +20,28 @@ const migrationsDir = resolve(repoRoot, 'packages/db/migrations');
 const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL ?? 'http://localhost:8787';
 const BETTER_AUTH_SECRET =
   process.env.BETTER_AUTH_SECRET ?? 'dev-secret-change-me-please-32chars!!';
+const AUTH_EMAIL_PASSWORD = process.env.AUTH_EMAIL_PASSWORD !== 'false';
+const AUTH_ALLOWED_EMAIL_DOMAINS =
+  process.env.AUTH_ALLOWED_EMAIL_DOMAINS ?? process.env.ALLOWED_EMAIL_DOMAINS ?? '';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_HOSTED_DOMAIN = process.env.GOOGLE_HOSTED_DOMAIN;
 const trustedOrigins = [
   'http://localhost:5173',
   'http://localhost:8787',
   BETTER_AUTH_URL,
 ];
+const allowedEmailDomains = AUTH_ALLOWED_EMAIL_DOMAINS.split(',')
+  .map((domain) => domain.trim().toLowerCase())
+  .filter(Boolean);
+const google =
+  GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+    ? {
+        clientId: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+        hostedDomain: GOOGLE_HOSTED_DOMAIN,
+      }
+    : undefined;
 
 // ---------------------------------------------------------------------------
 // Apply migrations on boot.
@@ -42,13 +59,22 @@ migrationClient.close();
 // Shared services (single process: one db + auth + in-memory realtime).
 // ---------------------------------------------------------------------------
 const db = createDb({ url: dbUrl });
-const auth = createAuth(db, {
+const authConfig = {
   secret: BETTER_AUTH_SECRET,
   baseURL: BETTER_AUTH_URL,
   trustedOrigins,
-});
+  emailAndPassword: AUTH_EMAIL_PASSWORD,
+  google,
+  allowedEmailDomains,
+};
+const auth = createAuth(db, authConfig);
 const realtime = new InMemoryRealtime();
-const services: AppServices = { db, auth, publisher: realtime };
+const services: AppServices = {
+  db,
+  auth,
+  authMethods: authMethodsOf(authConfig),
+  publisher: realtime,
+};
 
 // Per-socket metadata for room cleanup on close.
 interface SocketData {
