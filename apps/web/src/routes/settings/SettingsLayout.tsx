@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 const NAV = [
   { to: '/$ws/settings', label: 'General', exact: true },
   { to: '/$ws/settings/teams', label: 'Teams', exact: false },
+  { to: '/$ws/settings/statuses', label: 'Statuses', exact: false },
   { to: '/$ws/settings/members', label: 'Members', exact: false },
   { to: '/$ws/settings/labels', label: 'Labels', exact: false },
   { to: '/$ws/settings/api-keys', label: 'API keys', exact: false },

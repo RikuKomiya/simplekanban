@@ -14,6 +14,7 @@ import {
   UpdateStateInput,
   UpdateTeamInput,
 } from '@simplekanban/shared';
+import type { RealtimeEvent } from '@simplekanban/shared';
 import {
   getStateWithAccess,
   getTeamWithAccess,
@@ -161,13 +162,18 @@ teamsRouter.post('/teams/:teamId/states', async (c) => {
     .insert(workflowState)
     .values(row)
     .returning();
-  return c.json({ data: serializeWorkflowState(created!) }, 201);
+  const serialized = serializeWorkflowState(created!);
+  await publishState(c, t.workspaceId, 'state.created', serialized);
+  return c.json({ data: serialized }, 201);
 });
 
 /** PATCH /states/:id */
 teamsRouter.patch('/states/:id', async (c) => {
   const { db } = c.var.services;
-  const { state } = await getStateWithAccess(c, c.req.param('id'));
+  const { state, team: stateTeam } = await getStateWithAccess(
+    c,
+    c.req.param('id'),
+  );
   const input = await parseBody(c, UpdateStateInput);
 
   const patch: Partial<typeof workflowState.$inferInsert> = {};
@@ -185,13 +191,18 @@ teamsRouter.patch('/states/:id', async (c) => {
     .set(patch)
     .where(eq(workflowState.id, state.id))
     .returning();
-  return c.json({ data: serializeWorkflowState(updated!) });
+  const serialized = serializeWorkflowState(updated!);
+  await publishState(c, stateTeam.workspaceId, 'state.updated', serialized);
+  return c.json({ data: serialized });
 });
 
 /** DELETE /states/:id — refused if issues still reference the state. */
 teamsRouter.delete('/states/:id', async (c) => {
   const { db } = c.var.services;
-  const { state } = await getStateWithAccess(c, c.req.param('id'));
+  const { state, team: stateTeam } = await getStateWithAccess(
+    c,
+    c.req.param('id'),
+  );
 
   const used = await db
     .select({ id: issue.id })
@@ -206,5 +217,19 @@ teamsRouter.delete('/states/:id', async (c) => {
   }
 
   await db.delete(workflowState).where(eq(workflowState.id, state.id));
+  await publishState(c, stateTeam.workspaceId, 'state.deleted', {
+    id: state.id,
+  });
   return c.body(null, 204);
 });
+
+async function publishState(
+  c: Parameters<typeof requireWorkspaceAccess>[0],
+  workspaceId: string,
+  type: Extract<RealtimeEvent['type'], `state.${string}`>,
+  payload: unknown,
+): Promise<void> {
+  const event: RealtimeEvent = { type, payload };
+  if (c.var.clientId !== undefined) event.origin = c.var.clientId;
+  await c.var.services.publisher.publish(workspaceId, event);
+}

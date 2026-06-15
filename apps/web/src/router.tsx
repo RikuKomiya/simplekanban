@@ -24,6 +24,7 @@ import { MembersSettings } from '@/routes/settings/MembersSettings';
 import { LabelsSettings } from '@/routes/settings/LabelsSettings';
 import { ApiKeysSettings } from '@/routes/settings/ApiKeysSettings';
 import { TeamsSettings } from '@/routes/settings/TeamsSettings';
+import { StatusesSettings } from '@/routes/settings/StatusesSettings';
 import { WorkspaceGeneralSettings } from '@/routes/settings/WorkspaceGeneralSettings';
 
 // ---------------------------------------------------------------------------
@@ -184,6 +185,12 @@ const settingsTeamsRoute = createRoute({
   component: TeamsSettings,
 });
 
+const settingsStatusesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/statuses',
+  component: StatusesSettings,
+});
+
 // ---------------------------------------------------------------------------
 // Tree
 // ---------------------------------------------------------------------------
@@ -207,6 +214,7 @@ const routeTree = rootRoute.addChildren([
       settingsRoute.addChildren([
         settingsIndexRoute,
         settingsTeamsRoute,
+        settingsStatusesRoute,
         settingsMembersRoute,
         settingsLabelsRoute,
         settingsApiKeysRoute,
