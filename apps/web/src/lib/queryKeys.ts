@@ -5,6 +5,8 @@ import type { IssueListFilters } from '@simplekanban/shared';
  * these so cache invalidation stays in lockstep across the app.
  */
 export const qk = {
+  authMethods: () => ['authMethods'] as const,
+
   me: () => ['me'] as const,
 
   workspace: (ws: string) => ['workspace', ws] as const,

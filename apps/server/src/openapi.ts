@@ -77,6 +77,23 @@ export const openApiDocument = {
         responses: { '200': dataResponse('#/components/schemas/Me'), ...commonErrors },
       },
     },
+    '/auth-methods': {
+      get: {
+        operationId: 'getAuthMethods',
+        summary: 'Enabled sign-in methods',
+        security: [],
+        responses: {
+          '200': {
+            description: 'Enabled sign-in methods',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AuthMethods' },
+              },
+            },
+          },
+        },
+      },
+    },
     '/workspaces': {
       post: {
         operationId: 'createWorkspace',
@@ -476,6 +493,14 @@ export const openApiDocument = {
               message: { type: 'string' },
             },
           },
+        },
+      },
+      AuthMethods: {
+        type: 'object',
+        required: ['emailPassword', 'google'],
+        properties: {
+          emailPassword: { type: 'boolean' },
+          google: { type: 'boolean' },
         },
       },
       User: {

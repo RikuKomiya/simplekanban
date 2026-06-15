@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { createDb } from '@simplekanban/db';
 import type { RealtimeEvent } from '@simplekanban/shared';
 import { createApp } from './app.ts';
-import { createAuth } from './auth.ts';
+import { authMethodsOf, createAuth } from './auth.ts';
 import type { RealtimePublisher } from './realtime.ts';
 import type { AppServices } from './types.ts';
 
@@ -17,6 +17,12 @@ export interface WorkerEnv {
   // Vars / secrets
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
+  AUTH_EMAIL_PASSWORD?: string;
+  AUTH_ALLOWED_EMAIL_DOMAINS?: string;
+  ALLOWED_EMAIL_DOMAINS?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_HOSTED_DOMAIN?: string;
   TURSO_DATABASE_URL: string;
   TURSO_AUTH_TOKEN?: string;
 }
@@ -46,13 +52,31 @@ function buildServices(env: WorkerEnv): AppServices {
     authToken: env.TURSO_AUTH_TOKEN,
   });
   const trustedOrigins = [env.BETTER_AUTH_URL];
-  const auth = createAuth(db, {
+  const allowedEmailDomains = (
+    env.AUTH_ALLOWED_EMAIL_DOMAINS ?? env.ALLOWED_EMAIL_DOMAINS ?? ''
+  )
+    .split(',')
+    .map((domain) => domain.trim().toLowerCase())
+    .filter(Boolean);
+  const google =
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+      ? {
+          clientId: env.GOOGLE_CLIENT_ID,
+          clientSecret: env.GOOGLE_CLIENT_SECRET,
+          hostedDomain: env.GOOGLE_HOSTED_DOMAIN,
+        }
+      : undefined;
+  const authConfig = {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins,
-  });
+    emailAndPassword: env.AUTH_EMAIL_PASSWORD !== 'false',
+    google,
+    allowedEmailDomains,
+  };
+  const auth = createAuth(db, authConfig);
   const publisher = new DurableObjectPublisher(env);
-  return { db, auth, publisher };
+  return { db, auth, authMethods: authMethodsOf(authConfig), publisher };
 }
 
 export default {
