@@ -7,7 +7,9 @@ import {
   favorite,
   issue,
   issueActivity,
+  issueBlocker,
   issueLabel,
+  issueUsage,
   label,
   notification,
   project,
@@ -149,9 +151,36 @@ export const issueRelations = relations(issue, ({ one, many }) => ({
     references: [cycle.id],
   }),
   labels: many(issueLabel),
+  blockedBy: many(issueBlocker, { relationName: 'issueBlockedBy' }),
+  blocks: many(issueBlocker, { relationName: 'issueBlocks' }),
   comments: many(comment),
   activities: many(issueActivity),
   notifications: many(notification),
+  usage: many(issueUsage),
+}));
+
+export const issueBlockerRelations = relations(issueBlocker, ({ one }) => ({
+  blockedIssue: one(issue, {
+    fields: [issueBlocker.blockedIssueId],
+    references: [issue.id],
+    relationName: 'issueBlockedBy',
+  }),
+  blockerIssue: one(issue, {
+    fields: [issueBlocker.blockerIssueId],
+    references: [issue.id],
+    relationName: 'issueBlocks',
+  }),
+  creator: one(user, {
+    fields: [issueBlocker.createdById],
+    references: [user.id],
+  }),
+}));
+
+export const issueUsageRelations = relations(issueUsage, ({ one }) => ({
+  issue: one(issue, {
+    fields: [issueUsage.issueId],
+    references: [issue.id],
+  }),
 }));
 
 export const labelRelations = relations(label, ({ one, many }) => ({

@@ -104,5 +104,24 @@ export const FAVORITE_ENTITY_TYPES = [
 
 export type FavoriteEntityType = (typeof FAVORITE_ENTITY_TYPES)[number];
 
+/** API key permission scopes. `*` preserves the legacy full-access behavior. */
+export const API_KEY_SCOPES = [
+  '*',
+  'issues:read',
+  'issues:write',
+  'comments:read',
+  'comments:write',
+  'states:read',
+  'states:write',
+  'members:read',
+  'members:write',
+  'relations:read',
+  'relations:write',
+  'usage:write',
+  'api_keys:write',
+] as const;
+
+export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
+
 /** API-key plaintext prefix. */
 export const API_KEY_PREFIX = 'sk_';

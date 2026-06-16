@@ -1,5 +1,6 @@
 import type { Database } from '@simplekanban/db';
 import type { User as DbUser } from '@simplekanban/db';
+import type { ApiKeyScope } from '@simplekanban/shared';
 import type { RealtimePublisher } from './realtime.ts';
 import type { Auth, AuthMethods } from './auth.ts';
 
@@ -25,6 +26,8 @@ export interface AppEnv {
      * `null` for cookie/session auth (multi-workspace).
      */
     apiKeyWorkspaceId: string | null;
+    /** API key scopes when auth came from an API key; null for cookie/session auth. */
+    apiKeyScopes: ApiKeyScope[] | null;
     /** Client id from `x-client-id` header (realtime echo suppression). */
     clientId: string | undefined;
   };

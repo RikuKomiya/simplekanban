@@ -51,6 +51,16 @@ node packages/cli/dist/index.js issue list --team ENG --json
 
 `--json` を付けると生 JSON を返すので coding agent から扱いやすい。`kan api <method> <path>` は任意エンドポイントへのエスケープハッチ。
 
+Coding agent / issue tracker 連携向けには、`GET /api/v1/openapi.json` で機械可読仕様を取得できる。Alophony などの外部 orchestrator は以下の API を使える:
+
+- `GET /api/v1/teams/:teamId/issues?state=&limit=&cursor=` — ページ付き issue polling
+- `POST /api/v1/issues/batch` — 複数 issue の状態再取得
+- `GET/POST/DELETE /api/v1/issues/:id/blockers` — blocker relation
+- `GET /api/v1/issues/:id/comments` / `GET /api/v1/issues/:id/activity` — agent inspection
+- `POST /api/v1/issues/:id/usage` — 累積 token usage
+
+API key は作成時に `scopes` を指定できる。省略時は既存互換の `*` (full access)。Alophony 用の最小構成は `issues:read`, `issues:write`, `comments:write`, `states:read`, `members:read`, `relations:read`, `usage:write`。
+
 ## Deploy (Cloudflare + Turso)
 
 > 本番(Workers)は dev と違い**マイグレーションを自動適用しない**。手順 2 が必須。

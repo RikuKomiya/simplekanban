@@ -2,7 +2,9 @@ import type { MiddlewareHandler } from 'hono';
 import { eq } from 'drizzle-orm';
 import { apiKey, user as userTable } from '@simplekanban/db';
 import { API_KEY_PREFIX } from '@simplekanban/shared';
+import type { ApiKeyScope } from '@simplekanban/shared';
 import { sha256Hex } from './crypto.ts';
+import { parseApiKeyScopes } from './serialize.ts';
 import { unauthorized } from './errors.ts';
 import type { AppEnv, AppServices } from './types.ts';
 
@@ -10,6 +12,8 @@ export interface ResolvedAuth {
   user: typeof userTable.$inferSelect;
   /** Non-null when authenticated via API key — scopes access to that workspace. */
   apiKeyWorkspaceId: string | null;
+  /** Non-null when authenticated via API key — permission scopes for that key. */
+  apiKeyScopes: ApiKeyScope[] | null;
 }
 
 /**
@@ -55,7 +59,11 @@ export async function resolveAuth(
         .set({ lastUsedAt: new Date() })
         .where(eq(apiKey.id, key.id));
 
-      return { user: u, apiKeyWorkspaceId: key.workspaceId };
+      return {
+        user: u,
+        apiKeyWorkspaceId: key.workspaceId,
+        apiKeyScopes: parseApiKeyScopes(key.scopes),
+      };
     }
     throw unauthorized('Invalid API key');
   }
@@ -74,7 +82,7 @@ export async function resolveAuth(
   if (!u) {
     throw unauthorized();
   }
-  return { user: u, apiKeyWorkspaceId: null };
+  return { user: u, apiKeyWorkspaceId: null, apiKeyScopes: null };
 }
 
 /** Authentication middleware for all `/api/v1` routes. */
@@ -84,5 +92,6 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const resolved = await resolveAuth(c.var.services, c.req.raw.headers);
   c.set('user', resolved.user);
   c.set('apiKeyWorkspaceId', resolved.apiKeyWorkspaceId);
+  c.set('apiKeyScopes', resolved.apiKeyScopes);
   await next();
 };

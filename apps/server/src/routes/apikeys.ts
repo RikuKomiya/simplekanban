@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { and, asc, eq } from 'drizzle-orm';
 import { apiKey, genId } from '@simplekanban/db';
 import { CreateApiKeyInput } from '@simplekanban/shared';
-import { requireWorkspaceAccess } from '../access.ts';
+import { requireApiScope, requireWorkspaceAccess } from '../access.ts';
 import { notFound } from '../errors.ts';
 import { generateApiKey } from '../crypto.ts';
 import { serializeApiKey } from '../serialize.ts';
@@ -13,6 +13,7 @@ export const apiKeysRouter = new Hono<AppEnv>();
 
 /** GET /workspaces/:ws/api-keys — caller's keys in this workspace. */
 apiKeysRouter.get('/workspaces/:ws/api-keys', async (c) => {
+  requireApiScope(c, 'api_keys:write');
   const { db } = c.var.services;
   const workspaceId = c.req.param('ws');
   await requireWorkspaceAccess(c, workspaceId);
@@ -31,6 +32,7 @@ apiKeysRouter.get('/workspaces/:ws/api-keys', async (c) => {
 
 /** POST /workspaces/:ws/api-keys — plaintext key returned only here. */
 apiKeysRouter.post('/workspaces/:ws/api-keys', async (c) => {
+  requireApiScope(c, 'api_keys:write');
   const { db } = c.var.services;
   const workspaceId = c.req.param('ws');
   await requireWorkspaceAccess(c, workspaceId);
@@ -46,6 +48,7 @@ apiKeysRouter.post('/workspaces/:ws/api-keys', async (c) => {
       name: input.name,
       hashedKey: generated.hashedKey,
       prefix: generated.prefix,
+      scopes: encodeApiKeyScopes(input.scopes),
       lastUsedAt: null,
       createdAt: new Date(),
     })
@@ -64,6 +67,7 @@ apiKeysRouter.post('/workspaces/:ws/api-keys', async (c) => {
 
 /** DELETE /api-keys/:id — owner only. */
 apiKeysRouter.delete('/api-keys/:id', async (c) => {
+  requireApiScope(c, 'api_keys:write');
   const { db } = c.var.services;
   const id = c.req.param('id');
   const rows = await db
@@ -78,3 +82,8 @@ apiKeysRouter.delete('/api-keys/:id', async (c) => {
   await db.delete(apiKey).where(eq(apiKey.id, id));
   return c.body(null, 204);
 });
+
+function encodeApiKeyScopes(scopes: string[] | undefined): string {
+  if (!scopes || scopes.length === 0 || scopes.includes('*')) return '*';
+  return JSON.stringify([...new Set(scopes)]);
+}
