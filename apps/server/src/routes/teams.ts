@@ -18,6 +18,7 @@ import type { RealtimeEvent } from '@simplekanban/shared';
 import {
   getStateWithAccess,
   getTeamWithAccess,
+  requireApiScope,
   requireWorkspaceAccess,
 } from '../access.ts';
 import { badRequest, conflict, forbidden } from '../errors.ts';
@@ -32,6 +33,7 @@ export const teamsRouter = new Hono<AppEnv>();
 
 /** GET /workspaces/:ws/teams */
 teamsRouter.get('/workspaces/:ws/teams', async (c) => {
+  requireApiScope(c, 'states:read');
   const { db } = c.var.services;
   const workspaceId = c.req.param('ws');
   await requireWorkspaceAccess(c, workspaceId);
@@ -45,6 +47,7 @@ teamsRouter.get('/workspaces/:ws/teams', async (c) => {
 
 /** POST /workspaces/:ws/teams — create + seed default workflow states. */
 teamsRouter.post('/workspaces/:ws/teams', async (c) => {
+  requireApiScope(c, 'states:write');
   const { db } = c.var.services;
   const workspaceId = c.req.param('ws');
   await requireWorkspaceAccess(c, workspaceId);
@@ -81,12 +84,14 @@ teamsRouter.post('/workspaces/:ws/teams', async (c) => {
 
 /** GET /teams/:teamId */
 teamsRouter.get('/teams/:teamId', async (c) => {
+  requireApiScope(c, 'states:read');
   const t = await getTeamWithAccess(c, c.req.param('teamId'));
   return c.json({ data: serializeTeam(t) });
 });
 
 /** PATCH /teams/:teamId */
 teamsRouter.patch('/teams/:teamId', async (c) => {
+  requireApiScope(c, 'states:write');
   const { db } = c.var.services;
   const t = await getTeamWithAccess(c, c.req.param('teamId'));
   const input = await parseBody(c, UpdateTeamInput);
@@ -111,6 +116,7 @@ teamsRouter.patch('/teams/:teamId', async (c) => {
 
 /** DELETE /teams/:teamId */
 teamsRouter.delete('/teams/:teamId', async (c) => {
+  requireApiScope(c, 'states:write');
   const { db } = c.var.services;
   const t = await getTeamWithAccess(c, c.req.param('teamId'));
   const membership = await requireWorkspaceAccess(c, t.workspaceId);
@@ -123,6 +129,7 @@ teamsRouter.delete('/teams/:teamId', async (c) => {
 
 /** GET /teams/:teamId/states */
 teamsRouter.get('/teams/:teamId/states', async (c) => {
+  requireApiScope(c, 'states:read');
   const { db } = c.var.services;
   const t = await getTeamWithAccess(c, c.req.param('teamId'));
   const rows = await db
@@ -135,6 +142,7 @@ teamsRouter.get('/teams/:teamId/states', async (c) => {
 
 /** POST /teams/:teamId/states */
 teamsRouter.post('/teams/:teamId/states', async (c) => {
+  requireApiScope(c, 'states:write');
   const { db } = c.var.services;
   const t = await getTeamWithAccess(c, c.req.param('teamId'));
   const input = await parseBody(c, CreateStateInput);
@@ -169,6 +177,7 @@ teamsRouter.post('/teams/:teamId/states', async (c) => {
 
 /** PATCH /states/:id */
 teamsRouter.patch('/states/:id', async (c) => {
+  requireApiScope(c, 'states:write');
   const { db } = c.var.services;
   const { state, team: stateTeam } = await getStateWithAccess(
     c,
@@ -198,6 +207,7 @@ teamsRouter.patch('/states/:id', async (c) => {
 
 /** DELETE /states/:id — refused if issues still reference the state. */
 teamsRouter.delete('/states/:id', async (c) => {
+  requireApiScope(c, 'states:write');
   const { db } = c.var.services;
   const { state, team: stateTeam } = await getStateWithAccess(
     c,

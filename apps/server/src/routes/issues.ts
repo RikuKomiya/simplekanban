@@ -4,7 +4,10 @@ import {
   comment,
   genId,
   issue,
+  issueActivity,
+  issueBlocker,
   issueLabel,
+  issueUsage,
   label,
   project as projectTable,
   team,
@@ -13,9 +16,12 @@ import {
   type Issue as DbIssue,
 } from '@simplekanban/db';
 import {
+  AddIssueBlockerInput,
   AddIssueLabelInput,
+  AddIssueUsageInput,
   CreateCommentInput,
   CreateIssueInput,
+  IssueBatchInput,
   IssueListFilters,
   parseIdentifier,
   PRIORITY_LABELS,
@@ -28,16 +34,24 @@ import {
   getIssueWithAccess,
   getMembership,
   getTeamWithAccess,
+  requireApiScope,
   requireWorkspaceAccess,
 } from '../access.ts';
 import { badRequest, notFound } from '../errors.ts';
 import {
+  loadBlockedByRefs,
   loadIssueDetail,
+  loadUsersById,
   toIssuesWithRelations,
   getDefaultStateId,
   stateBelongsToTeam,
 } from '../loaders.ts';
-import { serializeComment } from '../serialize.ts';
+import {
+  serializeActivityWithActor,
+  serializeComment,
+  serializeCommentWithAuthor,
+  serializeIssueUsage,
+} from '../serialize.ts';
 import {
   createNotification,
   getIssueParticipants,
@@ -72,6 +86,7 @@ async function publish(
 // ---------------------------------------------------------------------------
 
 issuesRouter.get('/teams/:teamId/issues', async (c) => {
+  requireApiScope(c, 'issues:read');
   const { db } = c.var.services;
   const t = await getTeamWithAccess(c, c.req.param('teamId'));
 
@@ -85,7 +100,10 @@ issuesRouter.get('/teams/:teamId/issues', async (c) => {
   if (q.project !== undefined) raw.project = q.project;
   if (q.q !== undefined) raw.q = q.q;
   if (q.updatedSince !== undefined) raw.updatedSince = q.updatedSince;
+  if (q.limit !== undefined) raw.limit = Number(q.limit);
+  if (q.cursor !== undefined) raw.cursor = q.cursor;
   const filters = parseInput(IssueListFilters, raw);
+  const offset = parseCursor(filters.cursor);
 
   const conditions = [eq(issue.teamId, t.id)];
   if (filters.state) conditions.push(eq(issue.stateId, filters.state));
@@ -125,15 +143,47 @@ issuesRouter.get('/teams/:teamId/issues', async (c) => {
       .orderBy(asc(issue.sortOrder));
   }
 
-  const data = await toIssuesWithRelations(db, rows);
-  return c.json({ data });
+  const pageRows = applyPagination(rows, offset, filters.limit);
+  const data = await toIssuesWithRelations(db, pageRows.rows);
+  return c.json({
+    data,
+    pageInfo: {
+      hasNextPage: pageRows.nextCursor !== null,
+      nextCursor: pageRows.nextCursor,
+    },
+  });
 });
+
+function parseCursor(cursor: string | undefined): number {
+  if (cursor === undefined) return 0;
+  const parsed = Number(cursor);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw badRequest('Invalid cursor', 'invalid_cursor');
+  }
+  return parsed;
+}
+
+function applyPagination<T>(
+  rows: T[],
+  offset: number,
+  limit: number | undefined,
+): { rows: T[]; nextCursor: string | null } {
+  if (limit === undefined) {
+    return { rows, nextCursor: null };
+  }
+  const nextOffset = offset + limit;
+  return {
+    rows: rows.slice(offset, nextOffset),
+    nextCursor: nextOffset < rows.length ? String(nextOffset) : null,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // POST /teams/:teamId/issues — create with atomic per-team number
 // ---------------------------------------------------------------------------
 
 issuesRouter.post('/teams/:teamId/issues', async (c) => {
+  requireApiScope(c, 'issues:write');
   const { db } = c.var.services;
   const t = await getTeamWithAccess(c, c.req.param('teamId'));
   const input = await parseBody(c, CreateIssueInput);
@@ -225,10 +275,59 @@ issuesRouter.post('/teams/:teamId/issues', async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /issues/batch — visible existing issues only, preserving requested order
+// ---------------------------------------------------------------------------
+
+issuesRouter.post('/issues/batch', async (c) => {
+  requireApiScope(c, 'issues:read');
+  const input = await parseBody(c, IssueBatchInput);
+  const rows = await visibleIssuesByIds(c, input.ids);
+  const data = await toIssuesWithRelations(c.var.services.db, rows);
+  return c.json({ data });
+});
+
+async function visibleIssuesByIds(
+  c: Context<AppEnv>,
+  ids: string[],
+): Promise<DbIssue[]> {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return [];
+
+  const { db } = c.var.services;
+  const rows = await db
+    .select()
+    .from(issue)
+    .where(inArray(issue.id, uniqueIds));
+  if (rows.length === 0) return [];
+
+  const teamIds = [...new Set(rows.map((i) => i.teamId))];
+  const teamRows = await db.select().from(team).where(inArray(team.id, teamIds));
+  const teamsById = new Map(teamRows.map((t) => [t.id, t]));
+  const visibleById = new Map<string, DbIssue>();
+
+  for (const row of rows) {
+    const t = teamsById.get(row.teamId);
+    if (!t) continue;
+    if (c.var.apiKeyWorkspaceId !== null && c.var.apiKeyWorkspaceId !== t.workspaceId) {
+      continue;
+    }
+    const membership = await getMembership(db, t.workspaceId, c.var.user.id);
+    if (membership) {
+      visibleById.set(row.id, row);
+    }
+  }
+
+  return uniqueIds
+    .map((id) => visibleById.get(id))
+    .filter((row): row is DbIssue => row !== undefined);
+}
+
+// ---------------------------------------------------------------------------
 // GET /issues/:id
 // ---------------------------------------------------------------------------
 
 issuesRouter.get('/issues/:id', async (c) => {
+  requireApiScope(c, 'issues:read');
   const { db } = c.var.services;
   const { issue: i } = await getIssueWithAccess(c, c.req.param('id'));
   const detail = await loadIssueDetail(db, i);
@@ -240,6 +339,7 @@ issuesRouter.get('/issues/:id', async (c) => {
 // ---------------------------------------------------------------------------
 
 issuesRouter.get('/issues/by-key/:identifier', async (c) => {
+  requireApiScope(c, 'issues:read');
   const { db } = c.var.services;
   const identifier = c.req.param('identifier');
   let parsed: { teamKey: string; number: number };
@@ -279,6 +379,7 @@ issuesRouter.get('/issues/by-key/:identifier', async (c) => {
 // ---------------------------------------------------------------------------
 
 issuesRouter.patch('/issues/:id', async (c) => {
+  requireApiScope(c, 'issues:write');
   const { db } = c.var.services;
   const { issue: existing, team: t } = await getIssueWithAccess(
     c,
@@ -483,6 +584,7 @@ issuesRouter.patch('/issues/:id', async (c) => {
 // ---------------------------------------------------------------------------
 
 issuesRouter.delete('/issues/:id', async (c) => {
+  requireApiScope(c, 'issues:write');
   const { db } = c.var.services;
   const { issue: existing, team: t } = await getIssueWithAccess(
     c,
@@ -500,10 +602,57 @@ issuesRouter.delete('/issues/:id', async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /issues/:id/comments
+// ---------------------------------------------------------------------------
+
+issuesRouter.get('/issues/:id/comments', async (c) => {
+  requireApiScope(c, 'comments:read');
+  const { db } = c.var.services;
+  const { issue: existing } = await getIssueWithAccess(c, c.req.param('id'));
+
+  const rows = await db
+    .select()
+    .from(comment)
+    .where(eq(comment.issueId, existing.id))
+    .orderBy(asc(comment.createdAt));
+  const usersById = await loadUsersById(db, rows.map((cm) => cm.authorId));
+
+  return c.json({
+    data: rows.map((cm) =>
+      serializeCommentWithAuthor(cm, usersById.get(cm.authorId)!),
+    ),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /issues/:id/activity
+// ---------------------------------------------------------------------------
+
+issuesRouter.get('/issues/:id/activity', async (c) => {
+  requireApiScope(c, 'issues:read');
+  const { db } = c.var.services;
+  const { issue: existing } = await getIssueWithAccess(c, c.req.param('id'));
+
+  const rows = await db
+    .select()
+    .from(issueActivity)
+    .where(eq(issueActivity.issueId, existing.id))
+    .orderBy(asc(issueActivity.createdAt));
+  const usersById = await loadUsersById(db, rows.map((act) => act.actorId));
+
+  return c.json({
+    data: rows.map((act) =>
+      serializeActivityWithActor(act, usersById.get(act.actorId)!),
+    ),
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /issues/:id/comments
 // ---------------------------------------------------------------------------
 
 issuesRouter.post('/issues/:id/comments', async (c) => {
+  requireApiScope(c, 'comments:write');
   const { db } = c.var.services;
   const { issue: existing, team: t } = await getIssueWithAccess(
     c,
@@ -550,10 +699,144 @@ issuesRouter.post('/issues/:id/comments', async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET/POST/DELETE /issues/:id/blockers
+// ---------------------------------------------------------------------------
+
+issuesRouter.get('/issues/:id/blockers', async (c) => {
+  requireApiScope(c, 'relations:read');
+  const { db } = c.var.services;
+  const { issue: existing } = await getIssueWithAccess(c, c.req.param('id'));
+  const refs = await loadBlockedByRefs(db, [existing.id]);
+  return c.json({ data: refs.get(existing.id) ?? [] });
+});
+
+issuesRouter.post('/issues/:id/blockers', async (c) => {
+  requireApiScope(c, 'relations:write');
+  const { db } = c.var.services;
+  const { issue: existing, team: t } = await getIssueWithAccess(
+    c,
+    c.req.param('id'),
+  );
+  const input = await parseBody(c, AddIssueBlockerInput);
+  if (input.blockerIssueId === existing.id) {
+    throw badRequest('An issue cannot block itself', 'invalid_blocker');
+  }
+
+  const { team: blockerTeam } = await getIssueWithAccess(c, input.blockerIssueId);
+  if (blockerTeam.workspaceId !== t.workspaceId) {
+    throw badRequest('Blocker issue must belong to the same workspace', 'invalid_blocker');
+  }
+
+  const existsRows = await db
+    .select({
+      blockedIssueId: issueBlocker.blockedIssueId,
+      blockerIssueId: issueBlocker.blockerIssueId,
+    })
+    .from(issueBlocker)
+    .where(
+      and(
+        eq(issueBlocker.blockedIssueId, existing.id),
+        eq(issueBlocker.blockerIssueId, input.blockerIssueId),
+      ),
+    )
+    .limit(1);
+
+  if (existsRows.length === 0) {
+    await db.insert(issueBlocker).values({
+      blockedIssueId: existing.id,
+      blockerIssueId: input.blockerIssueId,
+      createdById: c.var.user.id,
+      createdAt: new Date(),
+    });
+    await recordActivity(db, {
+      issueId: existing.id,
+      actorId: c.var.user.id,
+      type: 'blocker_added',
+      data: { blockerIssueId: input.blockerIssueId },
+    });
+  }
+
+  const detail = await loadIssueDetail(db, existing);
+  await publish(c, t.workspaceId, 'issue.updated', detail);
+  return c.json({ data: detail }, 201);
+});
+
+issuesRouter.delete('/issues/:id/blockers/:blockerIssueId', async (c) => {
+  requireApiScope(c, 'relations:write');
+  const { db } = c.var.services;
+  const { issue: existing, team: t } = await getIssueWithAccess(
+    c,
+    c.req.param('id'),
+  );
+  const blockerIssueId = c.req.param('blockerIssueId');
+
+  await db
+    .delete(issueBlocker)
+    .where(
+      and(
+        eq(issueBlocker.blockedIssueId, existing.id),
+        eq(issueBlocker.blockerIssueId, blockerIssueId),
+      ),
+    );
+  await recordActivity(db, {
+    issueId: existing.id,
+    actorId: c.var.user.id,
+    type: 'blocker_removed',
+    data: { blockerIssueId },
+  });
+
+  await publish(c, t.workspaceId, 'issue.updated', await loadIssueDetail(db, existing));
+  return c.body(null, 204);
+});
+
+// ---------------------------------------------------------------------------
+// POST /issues/:id/usage
+// ---------------------------------------------------------------------------
+
+issuesRouter.post('/issues/:id/usage', async (c) => {
+  requireApiScope(c, 'usage:write');
+  const { db } = c.var.services;
+  const { issue: existing } = await getIssueWithAccess(c, c.req.param('id'));
+  const input = await parseBody(c, AddIssueUsageInput);
+  const now = new Date();
+
+  const currentRows = await db
+    .select()
+    .from(issueUsage)
+    .where(eq(issueUsage.issueId, existing.id))
+    .limit(1);
+  const current = currentRows[0];
+  const total = (current?.tokens ?? 0) + input.tokens;
+
+  if (current) {
+    await db
+      .update(issueUsage)
+      .set({ tokens: total, updatedAt: now })
+      .where(eq(issueUsage.issueId, existing.id));
+  } else {
+    await db.insert(issueUsage).values({
+      issueId: existing.id,
+      tokens: total,
+      updatedAt: now,
+    });
+  }
+
+  await recordActivity(db, {
+    issueId: existing.id,
+    actorId: c.var.user.id,
+    type: 'usage_tokens_added',
+    data: { tokens: input.tokens, total },
+  });
+
+  return c.json({ data: serializeIssueUsage({ issueId: existing.id, tokens: total, updatedAt: now }) });
+});
+
+// ---------------------------------------------------------------------------
 // POST /issues/:id/labels  +  DELETE /issues/:id/labels/:labelId
 // ---------------------------------------------------------------------------
 
 issuesRouter.post('/issues/:id/labels', async (c) => {
+  requireApiScope(c, 'issues:write');
   const { db } = c.var.services;
   const { issue: existing, team: t } = await getIssueWithAccess(
     c,
@@ -603,6 +886,7 @@ issuesRouter.post('/issues/:id/labels', async (c) => {
 });
 
 issuesRouter.delete('/issues/:id/labels/:labelId', async (c) => {
+  requireApiScope(c, 'issues:write');
   const { db } = c.var.services;
   const { issue: existing, team: t } = await getIssueWithAccess(
     c,

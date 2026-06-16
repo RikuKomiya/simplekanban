@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   FAVORITE_ENTITY_TYPES,
+  API_KEY_SCOPES,
   NOTIFICATION_TYPES,
   PROJECT_STATUSES,
   STATE_TYPES,
@@ -167,6 +168,24 @@ export const IssueSchema = z.object({
 });
 export type Issue = z.infer<typeof IssueSchema>;
 
+export const IssueBlockerRefSchema = z.object({
+  id: idString,
+  identifier: z.string(),
+  teamKey: z.string(),
+  number: z.number().int(),
+  title: z.string(),
+  state: WorkflowStateSchema,
+  stateName: z.string(),
+});
+export type IssueBlockerRef = z.infer<typeof IssueBlockerRefSchema>;
+
+export const IssueUsageSchema = z.object({
+  issueId: idString,
+  tokens: z.number().int().min(0),
+  updatedAt: isoDateString,
+});
+export type IssueUsage = z.infer<typeof IssueUsageSchema>;
+
 // ---------------------------------------------------------------------------
 // Comment / activity
 // ---------------------------------------------------------------------------
@@ -236,6 +255,7 @@ export const ApiKeySchema = z.object({
   workspaceId: idString,
   name: z.string(),
   prefix: z.string(),
+  scopes: z.array(z.enum(API_KEY_SCOPES)),
   lastUsedAt: isoDateString.nullable(),
   createdAt: isoDateString,
 });
@@ -255,6 +275,7 @@ export type ApiKeyWithSecret = z.infer<typeof ApiKeyWithSecretSchema>;
 export const IssueWithRelationsSchema = IssueSchema.extend({
   labels: z.array(LabelSchema),
   assignee: UserSummarySchema.nullable(),
+  blockedBy: z.array(IssueBlockerRefSchema),
 });
 export type IssueWithRelations = z.infer<typeof IssueWithRelationsSchema>;
 
@@ -262,6 +283,7 @@ export type IssueWithRelations = z.infer<typeof IssueWithRelationsSchema>;
 export const IssueDetailSchema = IssueSchema.extend({
   labels: z.array(LabelSchema),
   assignee: UserSummarySchema.nullable(),
+  blockedBy: z.array(IssueBlockerRefSchema),
   creator: UserSummarySchema,
   state: WorkflowStateSchema,
   comments: z.array(CommentWithAuthorSchema),

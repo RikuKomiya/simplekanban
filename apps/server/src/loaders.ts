@@ -3,8 +3,10 @@ import {
   comment,
   issue,
   issueActivity,
+  issueBlocker,
   issueLabel,
   label,
+  team,
   user as userTable,
   workflowState,
   type Database,
@@ -13,6 +15,7 @@ import {
   type User as DbUser,
 } from '@simplekanban/db';
 import type {
+  IssueBlockerRef,
   IssueDetail,
   IssueWithRelations,
 } from '@simplekanban/shared';
@@ -20,6 +23,7 @@ import {
   serializeActivityWithActor,
   serializeCommentWithAuthor,
   serializeIssue,
+  serializeIssueBlockerRef,
   serializeLabel,
   serializeUserSummary,
   serializeWorkflowState,
@@ -71,6 +75,7 @@ export async function toIssuesWithRelations(
     ),
   ];
   const usersById = await loadUsersById(db, assigneeIds);
+  const blockedBy = await loadBlockedByRefs(db, issueIds);
 
   return issues.map((i) => {
     const assignee =
@@ -81,6 +86,7 @@ export async function toIssuesWithRelations(
       ...serializeIssue(i),
       labels: (labelsByIssue.get(i.id) ?? []).map(serializeLabel),
       assignee,
+      blockedBy: blockedBy.get(i.id) ?? [],
     };
   });
 }
@@ -144,6 +150,8 @@ export async function loadIssueDetail(
     .where(eq(issue.parentId, i.id))
     .orderBy(asc(issue.sortOrder));
 
+  const blockedBy = await loadBlockedByRefs(db, [i.id]);
+
   // Gather every user referenced (creator, assignee, comment authors, actors).
   const userIds = new Set<string>();
   userIds.add(i.creatorId);
@@ -162,6 +170,7 @@ export async function loadIssueDetail(
     ...serializeIssue(i),
     labels: labels.map(serializeLabel),
     assignee,
+    blockedBy: blockedBy.get(i.id) ?? [],
     creator: serializeUserSummary(creator),
     state: serializeWorkflowState(state),
     comments: commentRows.map((cm) =>
@@ -172,6 +181,36 @@ export async function loadIssueDetail(
     ),
     subIssues: subIssueRows.map(serializeIssue),
   };
+}
+
+/** Load blocker issue references grouped by blocked issue id. */
+export async function loadBlockedByRefs(
+  db: Database,
+  issueIds: string[],
+): Promise<Map<string, IssueBlockerRef[]>> {
+  const out = new Map<string, IssueBlockerRef[]>();
+  if (issueIds.length === 0) return out;
+
+  const rows = await db
+    .select({
+      blockedIssueId: issueBlocker.blockedIssueId,
+      blocker: issue,
+      state: workflowState,
+      team,
+    })
+    .from(issueBlocker)
+    .innerJoin(issue, eq(issueBlocker.blockerIssueId, issue.id))
+    .innerJoin(workflowState, eq(issue.stateId, workflowState.id))
+    .innerJoin(team, eq(issue.teamId, team.id))
+    .where(inArray(issueBlocker.blockedIssueId, issueIds));
+
+  for (const row of rows) {
+    const list = out.get(row.blockedIssueId) ?? [];
+    list.push(serializeIssueBlockerRef(row.blocker, row.state, row.team));
+    out.set(row.blockedIssueId, list);
+  }
+
+  return out;
 }
 
 /** Resolve the default initial workflow state for a team (lowest position). */

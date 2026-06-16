@@ -332,6 +332,35 @@ export const issueLabel = sqliteTable(
   ],
 );
 
+export const issueBlocker = sqliteTable(
+  'issue_blocker',
+  {
+    blockedIssueId: text('blocked_issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    blockerIssueId: text('blocker_issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    createdById: text('created_by_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.blockedIssueId, table.blockerIssueId] }),
+    index('issue_blocker_blocked_issue_id_idx').on(table.blockedIssueId),
+    index('issue_blocker_blocker_issue_id_idx').on(table.blockerIssueId),
+  ],
+);
+
+export const issueUsage = sqliteTable('issue_usage', {
+  issueId: text('issue_id')
+    .primaryKey()
+    .references(() => issue.id, { onDelete: 'cascade' }),
+  tokens: integer('tokens').notNull().default(0),
+  updatedAt: updatedAt(),
+});
+
 export const comment = sqliteTable(
   'comment',
   {
@@ -433,6 +462,7 @@ export const apiKey = sqliteTable(
     name: text('name').notNull(),
     hashedKey: text('hashed_key').notNull(),
     prefix: text('prefix').notNull(),
+    scopes: text('scopes').notNull().default('*'),
     lastUsedAt: timestampMs('last_used_at'),
     createdAt: createdAt(),
   },
@@ -470,6 +500,10 @@ export type Label = typeof label.$inferSelect;
 export type NewLabel = typeof label.$inferInsert;
 export type IssueLabel = typeof issueLabel.$inferSelect;
 export type NewIssueLabel = typeof issueLabel.$inferInsert;
+export type IssueBlocker = typeof issueBlocker.$inferSelect;
+export type NewIssueBlocker = typeof issueBlocker.$inferInsert;
+export type IssueUsage = typeof issueUsage.$inferSelect;
+export type NewIssueUsage = typeof issueUsage.$inferInsert;
 export type Project = typeof project.$inferSelect;
 export type NewProject = typeof project.$inferInsert;
 export type Cycle = typeof cycle.$inferSelect;

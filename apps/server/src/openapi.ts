@@ -212,9 +212,28 @@ export const openApiDocument = {
           { name: 'project', in: 'query', schema: { type: 'string' } },
           { name: 'q', in: 'query', schema: { type: 'string' } },
           { name: 'updatedSince', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } },
+          { name: 'cursor', in: 'query', schema: { type: 'string' } },
         ],
         responses: {
-          '200': listResponse('#/components/schemas/IssueWithRelations'),
+          '200': {
+            description: 'Success',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['data', 'pageInfo'],
+                  properties: {
+                    data: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/IssueWithRelations' },
+                    },
+                    pageInfo: { $ref: '#/components/schemas/PageInfo' },
+                  },
+                },
+              },
+            },
+          },
           ...commonErrors,
         },
       },
@@ -223,6 +242,17 @@ export const openApiDocument = {
         requestBody: jsonBody('#/components/schemas/CreateIssueInput'),
         responses: {
           '201': dataResponse('#/components/schemas/IssueDetail'),
+          ...commonErrors,
+        },
+      },
+    },
+    '/issues/batch': {
+      post: {
+        operationId: 'batchIssues',
+        summary: 'Fetch visible issues by id, preserving requested order',
+        requestBody: jsonBody('#/components/schemas/IssueBatchInput'),
+        responses: {
+          '200': listResponse('#/components/schemas/IssueWithRelations'),
           ...commonErrors,
         },
       },
@@ -264,11 +294,67 @@ export const openApiDocument = {
     },
     '/issues/{id}/comments': {
       parameters: [{ $ref: '#/components/parameters/id' }],
+      get: {
+        operationId: 'listIssueComments',
+        responses: {
+          '200': listResponse('#/components/schemas/CommentWithAuthor'),
+          ...commonErrors,
+        },
+      },
       post: {
         operationId: 'createComment',
         requestBody: jsonBody('#/components/schemas/CreateCommentInput'),
         responses: {
           '201': dataResponse('#/components/schemas/Comment'),
+          ...commonErrors,
+        },
+      },
+    },
+    '/issues/{id}/activity': {
+      parameters: [{ $ref: '#/components/parameters/id' }],
+      get: {
+        operationId: 'listIssueActivity',
+        responses: {
+          '200': listResponse('#/components/schemas/IssueActivityWithActor'),
+          ...commonErrors,
+        },
+      },
+    },
+    '/issues/{id}/blockers': {
+      parameters: [{ $ref: '#/components/parameters/id' }],
+      get: {
+        operationId: 'listIssueBlockers',
+        responses: {
+          '200': listResponse('#/components/schemas/IssueBlockerRef'),
+          ...commonErrors,
+        },
+      },
+      post: {
+        operationId: 'addIssueBlocker',
+        requestBody: jsonBody('#/components/schemas/AddIssueBlockerInput'),
+        responses: {
+          '201': dataResponse('#/components/schemas/IssueDetail'),
+          ...commonErrors,
+        },
+      },
+    },
+    '/issues/{id}/blockers/{blockerIssueId}': {
+      parameters: [
+        { $ref: '#/components/parameters/id' },
+        { name: 'blockerIssueId', in: 'path', required: true, schema: { type: 'string' } },
+      ],
+      delete: {
+        operationId: 'removeIssueBlocker',
+        responses: { '204': { description: 'Removed' }, ...commonErrors },
+      },
+    },
+    '/issues/{id}/usage': {
+      parameters: [{ $ref: '#/components/parameters/id' }],
+      post: {
+        operationId: 'addIssueUsage',
+        requestBody: jsonBody('#/components/schemas/AddIssueUsageInput'),
+        responses: {
+          '200': dataResponse('#/components/schemas/IssueUsage'),
           ...commonErrors,
         },
       },
@@ -503,6 +589,14 @@ export const openApiDocument = {
           google: { type: 'boolean' },
         },
       },
+      PageInfo: {
+        type: 'object',
+        required: ['hasNextPage', 'nextCursor'],
+        properties: {
+          hasNextPage: { type: 'boolean' },
+          nextCursor: { type: ['string', 'null'] },
+        },
+      },
       User: {
         type: 'object',
         required: ['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt'],
@@ -692,7 +786,7 @@ export const openApiDocument = {
           { $ref: '#/components/schemas/Issue' },
           {
             type: 'object',
-            required: ['labels', 'assignee'],
+            required: ['labels', 'assignee', 'blockedBy'],
             properties: {
               labels: { type: 'array', items: { $ref: '#/components/schemas/Label' } },
               assignee: {
@@ -701,9 +795,35 @@ export const openApiDocument = {
                   { type: 'null' },
                 ],
               },
+              blockedBy: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/IssueBlockerRef' },
+              },
             },
           },
         ],
+      },
+      IssueBlockerRef: {
+        type: 'object',
+        required: ['id', 'identifier', 'teamKey', 'number', 'title', 'state', 'stateName'],
+        properties: {
+          id: { type: 'string' },
+          identifier: { type: 'string' },
+          teamKey: { type: 'string' },
+          number: { type: 'integer' },
+          title: { type: 'string' },
+          state: { $ref: '#/components/schemas/WorkflowState' },
+          stateName: { type: 'string' },
+        },
+      },
+      IssueUsage: {
+        type: 'object',
+        required: ['issueId', 'tokens', 'updatedAt'],
+        properties: {
+          issueId: { type: 'string' },
+          tokens: { type: 'integer', minimum: 0 },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
       },
       Comment: {
         type: 'object',
@@ -745,11 +865,18 @@ export const openApiDocument = {
           { $ref: '#/components/schemas/Issue' },
           {
             type: 'object',
-            required: ['labels', 'assignee', 'creator', 'state', 'comments', 'activities', 'subIssues'],
+            required: [
+              'labels', 'assignee', 'blockedBy', 'creator', 'state',
+              'comments', 'activities', 'subIssues',
+            ],
             properties: {
               labels: { type: 'array', items: { $ref: '#/components/schemas/Label' } },
               assignee: {
                 oneOf: [{ $ref: '#/components/schemas/UserSummary' }, { type: 'null' }],
+              },
+              blockedBy: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/IssueBlockerRef' },
               },
               creator: { $ref: '#/components/schemas/UserSummary' },
               state: { $ref: '#/components/schemas/WorkflowState' },
@@ -776,16 +903,38 @@ export const openApiDocument = {
       },
       ApiKey: {
         type: 'object',
-        required: ['id', 'userId', 'workspaceId', 'name', 'prefix', 'lastUsedAt', 'createdAt'],
+        required: ['id', 'userId', 'workspaceId', 'name', 'prefix', 'scopes', 'lastUsedAt', 'createdAt'],
         properties: {
           id: { type: 'string' },
           userId: { type: 'string' },
           workspaceId: { type: 'string' },
           name: { type: 'string' },
           prefix: { type: 'string' },
+          scopes: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/ApiKeyScope' },
+          },
           lastUsedAt: { type: ['string', 'null'], format: 'date-time' },
           createdAt: { type: 'string', format: 'date-time' },
         },
+      },
+      ApiKeyScope: {
+        type: 'string',
+        enum: [
+          '*',
+          'issues:read',
+          'issues:write',
+          'comments:read',
+          'comments:write',
+          'states:read',
+          'states:write',
+          'members:read',
+          'members:write',
+          'relations:read',
+          'relations:write',
+          'usage:write',
+          'api_keys:write',
+        ],
       },
       ApiKeyWithSecret: {
         allOf: [
@@ -885,6 +1034,13 @@ export const openApiDocument = {
           dueDate: { type: ['string', 'null'], format: 'date-time' },
         },
       },
+      IssueBatchInput: {
+        type: 'object',
+        required: ['ids'],
+        properties: {
+          ids: { type: 'array', maxItems: 200, items: { type: 'string' } },
+        },
+      },
       CreateCommentInput: {
         type: 'object',
         required: ['body'],
@@ -914,6 +1070,16 @@ export const openApiDocument = {
         type: 'object',
         required: ['labelId'],
         properties: { labelId: { type: 'string' } },
+      },
+      AddIssueBlockerInput: {
+        type: 'object',
+        required: ['blockerIssueId'],
+        properties: { blockerIssueId: { type: 'string' } },
+      },
+      AddIssueUsageInput: {
+        type: 'object',
+        required: ['tokens'],
+        properties: { tokens: { type: 'integer', minimum: 1 } },
       },
       CreateProjectInput: {
         type: 'object',
@@ -970,7 +1136,13 @@ export const openApiDocument = {
       CreateApiKeyInput: {
         type: 'object',
         required: ['name'],
-        properties: { name: { type: 'string', minLength: 1 } },
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          scopes: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/ApiKeyScope' },
+          },
+        },
       },
     },
   },

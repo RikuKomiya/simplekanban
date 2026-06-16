@@ -1,5 +1,7 @@
 import type {
   AddIssueLabelInput,
+  AddIssueBlockerInput,
+  AddIssueUsageInput,
   CreateApiKeyInput,
   CreateCommentInput,
   CreateCycleInput,
@@ -11,6 +13,7 @@ import type {
   CreateWorkspaceInput,
   InviteMemberInput,
   IssueListFilters,
+  IssueBatchInput,
   UpdateCommentInput,
   UpdateCycleInput,
   UpdateIssueInput,
@@ -23,9 +26,13 @@ import type {
   ApiKey,
   ApiKeyWithSecret,
   Comment,
+  CommentWithAuthor,
   Cycle,
   Issue,
   IssueDetail,
+  IssueActivityWithActor,
+  IssueBlockerRef,
+  IssueUsage,
   IssueWithRelations,
   Label,
   Me,
@@ -272,6 +279,9 @@ export function createApiClient(options: CreateApiClientOptions) {
       /** POST /teams/:teamId/issues */
       create: (teamId: string, input: CreateIssueInput) =>
         post<IssueDetail>(`/teams/${teamId}/issues`, input),
+      /** POST /issues/batch */
+      batch: (input: IssueBatchInput) =>
+        post<IssueWithRelations[]>('/issues/batch', input),
       /** GET /issues/:id */
       get: (id: string) => get<IssueDetail>(`/issues/${id}`),
       /** GET /issues/by-key/:identifier */
@@ -285,6 +295,24 @@ export function createApiClient(options: CreateApiClientOptions) {
       /** POST /issues/:id/comments */
       addComment: (id: string, input: CreateCommentInput) =>
         post<Comment>(`/issues/${id}/comments`, input),
+      /** GET /issues/:id/comments */
+      comments: (id: string) =>
+        get<CommentWithAuthor[]>(`/issues/${id}/comments`),
+      /** GET /issues/:id/activity */
+      activity: (id: string) =>
+        get<IssueActivityWithActor[]>(`/issues/${id}/activity`),
+      /** GET /issues/:id/blockers */
+      blockers: (id: string) =>
+        get<IssueBlockerRef[]>(`/issues/${id}/blockers`),
+      /** POST /issues/:id/blockers */
+      addBlocker: (id: string, input: AddIssueBlockerInput) =>
+        post<IssueDetail>(`/issues/${id}/blockers`, input),
+      /** DELETE /issues/:id/blockers/:blockerIssueId */
+      removeBlocker: (id: string, blockerIssueId: string) =>
+        del<void>(`/issues/${id}/blockers/${blockerIssueId}`),
+      /** POST /issues/:id/usage */
+      addUsage: (id: string, input: AddIssueUsageInput) =>
+        post<IssueUsage>(`/issues/${id}/usage`, input),
       /** POST /issues/:id/labels */
       addLabel: (id: string, input: AddIssueLabelInput) =>
         post<void>(`/issues/${id}/labels`, input),

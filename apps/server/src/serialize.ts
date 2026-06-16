@@ -20,6 +20,8 @@ import type {
   Cycle,
   Issue,
   IssueActivityWithActor,
+  IssueBlockerRef,
+  IssueUsage,
   Label,
   Notification,
   Project,
@@ -31,6 +33,7 @@ import type {
   WorkspaceMember,
   WorkspaceMemberWithUser,
 } from '@simplekanban/shared';
+import { API_KEY_SCOPES, type ApiKeyScope } from '@simplekanban/shared';
 
 /** Convert a Date (or null) into an ISO-8601 string (or null). */
 function iso(value: Date | null | undefined): string | null {
@@ -179,6 +182,34 @@ export function serializeIssue(i: DbIssue): Issue {
   };
 }
 
+export function serializeIssueBlockerRef(
+  i: DbIssue,
+  state: DbWorkflowState,
+  t: DbTeam,
+): IssueBlockerRef {
+  return {
+    id: i.id,
+    identifier: `${t.key}-${i.number}`,
+    teamKey: t.key,
+    number: i.number,
+    title: i.title,
+    state: serializeWorkflowState(state),
+    stateName: state.name,
+  };
+}
+
+export function serializeIssueUsage(value: {
+  issueId: string;
+  tokens: number;
+  updatedAt: Date;
+}): IssueUsage {
+  return {
+    issueId: value.issueId,
+    tokens: value.tokens,
+    updatedAt: isoRequired(value.updatedAt),
+  };
+}
+
 export function serializeComment(c: DbComment): Comment {
   return {
     id: c.id,
@@ -235,7 +266,30 @@ export function serializeApiKey(k: DbApiKey): ApiKey {
     workspaceId: k.workspaceId,
     name: k.name,
     prefix: k.prefix,
+    scopes: parseApiKeyScopes(k.scopes),
     lastUsedAt: iso(k.lastUsedAt),
     createdAt: isoRequired(k.createdAt),
   };
+}
+
+export function parseApiKeyScopes(value: string | null | undefined): ApiKeyScope[] {
+  if (!value || value === '*') return ['*'];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      const scopes = parsed.filter((scope): scope is ApiKeyScope =>
+        typeof scope === 'string' && (API_KEY_SCOPES as readonly string[]).includes(scope),
+      );
+      return scopes.length === 0 ? ['*'] : scopes;
+    }
+  } catch {
+    // Fall through to comma-delimited legacy tolerance.
+  }
+  const scopes = value
+    .split(',')
+    .map((scope) => scope.trim())
+    .filter((scope): scope is ApiKeyScope =>
+      (API_KEY_SCOPES as readonly string[]).includes(scope),
+    );
+  return scopes.length === 0 ? ['*'] : scopes;
 }

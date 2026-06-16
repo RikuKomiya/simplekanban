@@ -24,6 +24,7 @@ import {
 } from '@simplekanban/db';
 import { forbidden, notFound } from './errors.ts';
 import type { AppEnv } from './types.ts';
+import type { ApiKeyScope } from '@simplekanban/shared';
 import type { Context } from 'hono';
 
 /** Look up the membership row for (workspace, user), or null. */
@@ -65,6 +66,19 @@ export async function requireWorkspaceAccess(
     throw forbidden('You are not a member of this workspace');
   }
   return membership;
+}
+
+/** Assert that an API-key-authenticated request has one of the requested scopes. */
+export function requireApiScope(
+  c: Context<AppEnv>,
+  scope: ApiKeyScope | ApiKeyScope[],
+): void {
+  const scopes = c.var.apiKeyScopes;
+  if (scopes === null || scopes.includes('*')) return;
+  const allowed = Array.isArray(scope) ? scope : [scope];
+  if (!allowed.some((s) => scopes.includes(s))) {
+    throw forbidden(`API key is missing required scope: ${allowed.join(' or ')}`);
+  }
 }
 
 /** Fetch a workspace by id or 404. */

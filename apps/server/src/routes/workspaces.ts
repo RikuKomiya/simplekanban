@@ -15,6 +15,7 @@ import {
 } from '@simplekanban/shared';
 import {
   getWorkspaceOr404,
+  requireApiScope,
   requireWorkspaceAccess,
 } from '../access.ts';
 import { conflict, forbidden, notFound } from '../errors.ts';
@@ -96,6 +97,7 @@ workspacesRouter.post('/workspaces', async (c) => {
 
 /** GET /workspaces/:ws — detail (teams, members, labels). */
 workspacesRouter.get('/workspaces/:ws', async (c) => {
+  requireApiScope(c, 'members:read');
   const { db } = c.var.services;
   const workspaceId = c.req.param('ws');
   await requireWorkspaceAccess(c, workspaceId);
@@ -134,6 +136,7 @@ workspacesRouter.get('/workspaces/:ws', async (c) => {
 
 /** POST /workspaces/:ws/members — invite an existing user by email. */
 workspacesRouter.post('/workspaces/:ws/members', async (c) => {
+  requireApiScope(c, 'members:write');
   const { db } = c.var.services;
   const workspaceId = c.req.param('ws');
   const membership = await requireWorkspaceAccess(c, workspaceId);

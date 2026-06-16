@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   FAVORITE_ENTITY_TYPES,
+  API_KEY_SCOPES,
   NOTIFICATION_TYPES,
   PROJECT_STATUSES,
   STATE_TYPES,
@@ -137,9 +138,26 @@ export const IssueListFilters = z
     project: idString,
     q: z.string(),
     updatedSince: isoDateInput,
+    limit: z.number().int().min(1).max(200),
+    cursor: z.string().min(1),
   })
   .partial();
 export type IssueListFilters = z.infer<typeof IssueListFilters>;
+
+export const IssueBatchInput = z.object({
+  ids: z.array(idString).max(200),
+});
+export type IssueBatchInput = z.infer<typeof IssueBatchInput>;
+
+export const AddIssueBlockerInput = z.object({
+  blockerIssueId: idString,
+});
+export type AddIssueBlockerInput = z.infer<typeof AddIssueBlockerInput>;
+
+export const AddIssueUsageInput = z.object({
+  tokens: z.number().int().positive(),
+});
+export type AddIssueUsageInput = z.infer<typeof AddIssueUsageInput>;
 
 // ---------------------------------------------------------------------------
 // Comment
@@ -247,6 +265,7 @@ export type NotificationListFilters = z.infer<typeof NotificationListFilters>;
 
 export const CreateApiKeyInput = z.object({
   name: z.string().min(1),
+  scopes: z.array(z.enum(API_KEY_SCOPES)).optional(),
 });
 export type CreateApiKeyInput = z.infer<typeof CreateApiKeyInput>;
 
