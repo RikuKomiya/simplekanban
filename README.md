@@ -40,13 +40,17 @@ bun run test
 ## CLI (`kan`)
 
 ```sh
-cd packages/cli && bun run build         # dist/index.js を生成
-node packages/cli/dist/index.js --help
+# checkout 内で使う
+bun run kan -- --help
+
+# どの project からも `kan ...` で使える shim を入れる
+bun run install:kan
+kan --help
 
 # 本番に対して使う例
-node packages/cli/dist/index.js auth login \
+kan auth login \
   --url https://<your-worker>.workers.dev --key sk_xxx   # API キーは Web の Settings → API Keys で発行
-node packages/cli/dist/index.js issue list --team ENG --json
+kan issue list --team ENG --json
 ```
 
 `--json` を付けると生 JSON を返すので coding agent から扱いやすい。`kan api <method> <path>` は任意エンドポイントへのエスケープハッチ。

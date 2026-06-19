@@ -12,6 +12,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "install:kan": "bash scripts/install-kan-shim.sh",
+    "kan": "bash scripts/kan.sh",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test"
