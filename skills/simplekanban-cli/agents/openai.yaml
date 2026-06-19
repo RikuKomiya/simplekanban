@@ -1,0 +1,4 @@
+interface:
+  display_name: "SimpleKanban CLI"
+  short_description: "Operate SimpleKanban through the kan CLI"
+  default_prompt: "Use $simplekanban-cli to inspect SimpleKanban issues and make the requested CLI updates."

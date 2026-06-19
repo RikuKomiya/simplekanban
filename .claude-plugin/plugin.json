@@ -1,0 +1,7 @@
+{
+  "name": "simplekanban",
+  "skills": [
+    "./skills/setup-simplekanban",
+    "./skills/simplekanban-cli"
+  ]
+}
