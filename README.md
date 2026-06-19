@@ -11,6 +11,46 @@
 
 設計の詳細は [ARCHITECTURE.md](./ARCHITECTURE.md)、開発の指針は [CLAUDE.md](./CLAUDE.md) を参照。
 
+## Quickstart: Skill Install
+
+`skills.sh` installer 経由で入れる:
+
+```sh
+npx skills@latest add RikuKomiya/simplekanban
+```
+
+prompt が出たら `simplekanban-cli` と使いたい agent を選ぶ。Codex で使う場合は、install 後に Codex を再起動して `$simplekanban-cli` を呼ぶ。
+
+prompt なしで入れる場合:
+
+```sh
+npx skills@latest add RikuKomiya/simplekanban \
+  --skill simplekanban-cli \
+  --agent codex \
+  --global \
+  --yes
+```
+
+`skills` CLI が使えない環境では Codex 付属 installer でも入れられる:
+
+```sh
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo RikuKomiya/simplekanban \
+  --path skills/simplekanban-cli
+```
+
+skill は `kan` CLI の使い方を agent に教えるものなので、別 machine で実際に SimpleKanban を操作するには CLI と認証も設定する:
+
+```sh
+git clone https://github.com/RikuKomiya/simplekanban.git
+cd simplekanban
+bun install --frozen-lockfile
+bun run install:kan
+kan auth login --url https://<your-worker>.workers.dev --key sk_xxx
+```
+
+認証情報は `~/.config/kan/config.json` に保存される。同じ OS user なら別 Codex session / terminal / project でも再利用される。
+
 ## Development
 
 ```sh
@@ -55,9 +95,9 @@ kan issue list --team ENG --json
 
 `--json` を付けると生 JSON を返すので coding agent から扱いやすい。`kan api <method> <path>` は任意エンドポイントへのエスケープハッチ。
 
-### Codex skill と CLI を別環境に入れる
+### Manual Codex skill install
 
-Codex から SimpleKanban を操作したい環境では、まず skill を入れる:
+`skills.sh` installer が使えない環境では Codex 付属 installer で入れる:
 
 ```sh
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
