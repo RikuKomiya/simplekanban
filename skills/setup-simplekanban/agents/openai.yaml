@@ -1,0 +1,4 @@
+interface:
+  display_name: "Setup SimpleKanban"
+  short_description: "Configure SimpleKanban skills and CLI"
+  default_prompt: "Use $setup-simplekanban to configure SimpleKanban skills, the kan CLI, and authentication for this environment."

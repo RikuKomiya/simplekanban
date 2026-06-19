@@ -19,38 +19,39 @@
 npx skills@latest add RikuKomiya/simplekanban
 ```
 
-prompt が出たら `simplekanban-cli` と使いたい agent を選ぶ。Codex で使う場合は、install 後に Codex を再起動して `$simplekanban-cli` を呼ぶ。
+prompt が出たら `setup-simplekanban`, `simplekanban-cli`, 使いたい agent, project/global scope を選ぶ。install 後に Codex や Claude Code を再起動して `$setup-simplekanban` を呼ぶと、CLI shim と認証まで対話的に設定できる。
 
 prompt なしで入れる場合:
 
 ```sh
 # current project の Codex 用に入れる
 npx skills@latest add RikuKomiya/simplekanban \
-  --skill simplekanban-cli \
+  --skill setup-simplekanban simplekanban-cli \
   --agent codex \
   --yes
 
 # current project の Claude Code 用に入れる
 npx skills@latest add RikuKomiya/simplekanban \
-  --skill simplekanban-cli \
+  --skill setup-simplekanban simplekanban-cli \
   --agent claude-code \
   --yes
 
 # user global の Codex 用に入れる
 npx skills@latest add RikuKomiya/simplekanban \
-  --skill simplekanban-cli \
+  --skill setup-simplekanban simplekanban-cli \
   --agent codex \
   --global \
   --yes
 ```
 
-project-local install は current directory に agent 用ファイルと `skills-lock.json` を作る。Codex は `./.agents/skills/simplekanban-cli`、Claude Code は `./.claude/skills/simplekanban-cli` に入る。
+project-local install は current directory に agent 用ファイルと `skills-lock.json` を作る。Codex は `./.agents/skills/<skill-name>`、Claude Code は `./.claude/skills/<skill-name>` に入る。
 
 `skills` CLI が使えない環境では Codex 付属 installer でも入れられる:
 
 ```sh
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo RikuKomiya/simplekanban \
+  --path skills/setup-simplekanban \
   --path skills/simplekanban-cli
 ```
 
