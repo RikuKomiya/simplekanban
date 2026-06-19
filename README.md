@@ -55,6 +55,38 @@ kan issue list --team ENG --json
 
 `--json` を付けると生 JSON を返すので coding agent から扱いやすい。`kan api <method> <path>` は任意エンドポイントへのエスケープハッチ。
 
+### Codex skill と CLI を別環境に入れる
+
+Codex から SimpleKanban を操作したい環境では、まず skill を入れる:
+
+```sh
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo RikuKomiya/simplekanban \
+  --path skills/simplekanban-cli
+```
+
+install 後は Codex を再起動して `$simplekanban-cli` を使う。
+
+別 project や別ターミナルから `kan ...` を使いたい環境では、CLI shim も入れる:
+
+```sh
+git clone https://github.com/RikuKomiya/simplekanban.git
+cd simplekanban
+bun install --frozen-lockfile
+bun run install:kan
+```
+
+これで `~/.local/bin/kan` がこの checkout の CLI を指す。`~/.local/bin` が `PATH` に入っていれば、どの directory からでも `kan auth status --json` や `kan issue list ...` を実行できる。
+
+認証は一度だけ:
+
+```sh
+kan auth login --url https://<your-worker>.workers.dev --key sk_xxx
+kan auth status --json
+```
+
+認証情報は `~/.config/kan/config.json` に保存される。同じ OS user なら別 Codex session / terminal / project でも再利用される。`KAN_API_URL` / `KAN_API_KEY` を環境変数で渡した場合だけ、その shell の値が優先される。
+
 Coding agent / issue tracker 連携向けには、`GET /api/v1/openapi.json` で機械可読仕様を取得できる。Alophony などの外部 orchestrator は以下の API を使える:
 
 - `GET /api/v1/teams/:teamId/issues?state=&limit=&cursor=` — ページ付き issue polling
