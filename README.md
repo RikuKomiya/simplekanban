@@ -153,6 +153,14 @@ Coding agent / issue tracker 連携向けには、`GET /api/v1/openapi.json` で
 
 API key は作成時に `scopes` を指定できる。省略時は既存互換の `*` (full access)。Alophony 用の最小構成は `issues:read`, `issues:write`, `comments:write`, `states:read`, `members:read`, `relations:read`, `usage:write`。
 
+外部 orchestrator が unattended な issue 処理を行う場合は、以下を基本フローにする:
+
+- `GET /api/v1/teams/:teamId/issues` または `POST /api/v1/issues/batch` で対象 issue と現在 state を確認する
+- `GET /api/v1/issues/:id/comments` で agent 用の進捗コメントを再利用し、なければ `POST /api/v1/issues/:id/comments` で作成する
+- 実装前に再現シグナル、同期結果、受け入れ条件をコメントへ残し、作業中も同じコメントを更新する
+- 完了前に build / typecheck / test と review feedback sweep の結果をコメントへ残す
+- `states:read` で state id を解決し、完了条件を満たしてから `issues:write` で review state へ遷移する
+
 ## Deploy (Cloudflare + Turso)
 
 > 本番(Workers)は dev と違い**マイグレーションを自動適用しない**。手順 2 が必須。
